@@ -1115,6 +1115,7 @@
     --phone-frame-radius: 0px;
     --phone-case-radius: 0px;
     width: var(--phone-screen-width);
+    height: var(--phone-screen-height);
     margin-inline: 0;
     gap: 0;
     transform-origin: top left;
