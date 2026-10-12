@@ -46,3 +46,34 @@
   --font-size-lg: 17px;  --font-size-xl: 20px;
   --font-size-2xl: 24px; --font-size-3xl: 30px;
 }
+
+/* 强制全屏补丁（专治套壳 APK 兼容问题） */
+html, body {
+  overflow: hidden;
+  width: 100%;
+  height: 100dvh;
+}
+.phone-shell-wrap {
+  width: 100vw !important;
+  height: 100dvh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+}
+.phone-case, .phone-frame {
+  width: 100vw !important;
+  height: 100dvh !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+.phone-case::before, .phone-case::after, .phone-frame::before, .phone-frame::after {
+  display: none !important;
+}
+.phone-shell {
+  width: 100vw !important;
+  height: 100dvh !important;
+  border-radius: 0 !important;
+}
