@@ -1298,6 +1298,24 @@ export async function saveCustomAppMedia(record: Record<string, unknown>): Promi
   const dataUrl = cleanText(record.dataUrl, 25_000_000);
   if (!dataUrl) throw new Error("media.save 需要 dataUrl。");
   const blob = dataUrlToBlob(dataUrl);
+  const filename = cleanText(record.filename ?? record.name, 180);
+  if (record.download === true && typeof document !== "undefined") {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename || `download-${Date.now()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    return {
+      ok: true,
+      downloaded: true,
+      filename: a.download,
+      mimeType: blob.type || "application/octet-stream",
+      size: blob.size,
+    };
+  }
   const type = cleanText(record.type, 80) || "custom_app_media";
   const assetId = await saveThemeAssetFromBlob(blob, type as ThemeAssetType, cleanText(record.id, 160) || undefined);
   return {

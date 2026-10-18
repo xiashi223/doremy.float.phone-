@@ -1558,7 +1558,11 @@ export function CustomAppRunner({
       return pickCustomAppMedia(record);
     }
     if (action === "media.save") {
-      requirePermission("media.save");
+      if (record.download === true) {
+        requireAnyPermission(["media.save", "app.data.write", "media.pick"]);
+      } else {
+        requirePermission("media.save");
+      }
       return saveCustomAppMedia(record);
     }
 
