@@ -65,6 +65,7 @@ import type { ApiConfig, VoiceApiConfig, WorldBookConfig, WorldBookEntry } from 
 import { createSTTSession } from "./stt-service";
 import { generateImageFromConfiguredApi } from "./image-generation-service";
 import { getThemeAssetDataUrl, saveThemeAssetFromBlob } from "./theme-storage";
+import { downloadFile } from "./download-utils";
 import type { ThemeAssetType } from "./theme-types";
 import { synthesizeSpeech } from "./tts-service";
 import {
@@ -1300,18 +1301,12 @@ export async function saveCustomAppMedia(record: Record<string, unknown>): Promi
   const blob = dataUrlToBlob(dataUrl);
   const filename = cleanText(record.filename ?? record.name, 180);
   if (record.download === true && typeof document !== "undefined") {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename || `download-${Date.now()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+    const targetName = filename || `download-${Date.now()}.zip`;
+    await downloadFile(blob, targetName);
     return {
       ok: true,
       downloaded: true,
-      filename: a.download,
+      filename: targetName,
       mimeType: blob.type || "application/octet-stream",
       size: blob.size,
     };
