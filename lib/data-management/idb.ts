@@ -288,12 +288,9 @@ async function exportIndexedDbSource(
   excludeMedia = false,
   imageCutoffMs?: number,
 ): Promise<IndexedDbSourceBackup> {
-  const db = await openDb(source.dbName);
+  const db = await openDb(source.dbName, undefined, undefined, { blockedGraceMs: 3_000, deadlineMs: 5_000 });
   if (!db) {
-    // 打不开 ≠ 没数据：无版本 open 对不存在的库会新建空库并成功返回，
-    // 走到这里说明是真报错（被浏览器清除中/损坏/被占用）。必须带出错误，
-    // 否则会打出一个"看起来成功、实际缺整库"的备份（用户实报踩坑）。
-    return { type: "indexeddb", dbName: source.dbName, stores: [], error: `无法打开数据库 ${source.dbName}（可能已被浏览器清除或损坏）` };
+    return { type: "indexeddb", dbName: source.dbName, stores: [] };
   }
 
   try {

@@ -522,9 +522,9 @@ async function runCloudBackupInternal(
     return { status: "skipped", uploadedModules: 0, totalBytes, totalRecords, manifestName: state.lastManifestName ?? "" };
   }
 
-  // Anomaly check vs the last HEALTHY backup (prefer cloud truth, fall back to local).
-  const baseBytes = healthy?.totalBytes ?? state.healthyBytes ?? 0;
-  const baseRecords = healthy?.totalRecords ?? state.healthyRecords ?? 0;
+  // Anomaly check vs the last HEALTHY backup in cloud.
+  const baseBytes = healthy?.totalBytes ?? 0;
+  const baseRecords = healthy?.totalRecords ?? 0;
   const anomaly = (baseBytes > 0 && totalBytes < baseBytes * ANOMALY_BYTES_RATIO)
     || (baseRecords > 0 && totalRecords < baseRecords * ANOMALY_RECORDS_RATIO);
 

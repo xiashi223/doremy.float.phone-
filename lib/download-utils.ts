@@ -118,7 +118,7 @@ export async function downloadFile(blob: Blob, filename: string, options: Downlo
     }
 
     anchorDownload();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 /** Blob → 纯 base64（去掉 data URL 前缀），供壳的 saveBase64File 使用。 */
