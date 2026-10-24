@@ -118,7 +118,8 @@ export async function downloadFile(blob: Blob, filename: string, options: Downlo
     }
 
     anchorDownload();
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    // 大文件（200MB+）在移动端浏览器唤起下载器及流式落盘耗时较长，保留 5 分钟再释放
+    setTimeout(() => URL.revokeObjectURL(url), 300_000);
 }
 
 /** Blob → 纯 base64（去掉 data URL 前缀），供壳的 saveBase64File 使用。 */
