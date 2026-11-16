@@ -282,14 +282,37 @@ export function MainApp() {
       setKvHydrateFailed(false);
 
       let nextPreparedTheme: PreparedDesktopTheme | null = null;
+      let timedOut = false;
       try {
-        nextPreparedTheme = await prepareDesktopThemeForFirstPaint();
+        const preloadPromise = prepareDesktopThemeForFirstPaint();
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<null>((resolve) => {
+          timeoutId = setTimeout(() => {
+            timedOut = true;
+            resolve(null);
+          }, 1500);
+        });
+        nextPreparedTheme = await Promise.race([preloadPromise, timeoutPromise]);
+        if (timeoutId) clearTimeout(timeoutId);
+        if (timedOut) {
+          void preloadPromise
+            .then((lateTheme) => {
+              if (!cancelled && lateTheme) {
+                setPreparedDesktopTheme(lateTheme);
+              }
+            })
+            .catch((error) => {
+              console.warn("[MainApp] desktop theme late preload failed:", error);
+            });
+        }
       } catch (error) {
         console.warn("[MainApp] desktop theme preload failed:", error);
       }
 
       if (cancelled) return;
-      setPreparedDesktopTheme(nextPreparedTheme);
+      if (nextPreparedTheme) {
+        setPreparedDesktopTheme(nextPreparedTheme);
+      }
       setHydrated(true);
       if (hasPendingMcpOAuthCallback()) {
         setSplashDismissed(true);
