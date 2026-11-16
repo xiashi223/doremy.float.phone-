@@ -16,13 +16,6 @@ import {
 } from "@/lib/music-service";
 import MusicCommentsPage from "./music-comments";
 import MusicArtistPage from "./music-artist";
-import ListenTogetherLayer from "./listen-together-layer";
-import ListenTogetherPanel from "./listen-together-panel";
-import {
-    LISTEN_SESSION_EVENT,
-    loadListenSession,
-    type ListenTogetherSession,
-} from "@/lib/music-listen-together";
 import { loadMusicBg, playerBgStyle, MUSIC_BG_EVENT, type MusicBgConfig } from "@/lib/music-bg";
 
 const PLAY_MODE_ICONS: Record<PlayMode, { svg: string; label: string }> = {
@@ -78,15 +71,6 @@ export default function MusicPlayer() {
     const [palette, setPalette] = useState<CoverPalette>(DEFAULT_COVER_PALETTE);
     const [bgCfg, setBgCfg] = useState<MusicBgConfig>(() => loadMusicBg());
     const [commentTotal, setCommentTotal] = useState(0);
-    const [listenSession, setListenSession] = useState<ListenTogetherSession>(() => loadListenSession());
-    const [showListenPanel, setShowListenPanel] = useState(false);
-
-    useEffect(() => {
-        const syncListen = () => setListenSession(loadListenSession());
-        syncListen();
-        window.addEventListener(LISTEN_SESSION_EVENT, syncListen);
-        return () => window.removeEventListener(LISTEN_SESSION_EVENT, syncListen);
-    }, []);
 
     useEffect(() => {
         const handleBgChange = () => setBgCfg(loadMusicBg());
@@ -486,17 +470,6 @@ export default function MusicPlayer() {
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
                     </button>
-                    <button
-                        className="music-player-ctrl-btn mp-top-btn"
-                        data-active={listenSession.active ? "true" : undefined}
-                        onClick={() => setShowListenPanel(true)}
-                        title="音乐一起听"
-                    >
-                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
-                            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
-                        </svg>
-                    </button>
                     <button className="music-player-ctrl-btn mp-top-btn" onClick={openShareViaChat} title="分享到聊天">
                         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
@@ -780,28 +753,6 @@ export default function MusicPlayer() {
                     {addResult.ok ? "✓ " : "✗ "}{addResult.message}
                 </div>
             )}
-
-            {/* Listen Together non-blocking interactive layer */}
-            {listenSession.active && (
-                <ListenTogetherLayer
-                    session={listenSession}
-                    track={track}
-                    currentTime={currentTime}
-                    isPlaying={player.isPlaying}
-                    activeLyricText={activeLyricText}
-                    onSkipTrack={handleNext}
-                    onOpenPanel={() => setShowListenPanel(true)}
-                    onToast={showMusicToast}
-                />
-            )}
-
-            {/* Listen Together setup panel */}
-            <ListenTogetherPanel
-                open={showListenPanel}
-                onClose={() => setShowListenPanel(false)}
-                onSessionChange={setListenSession}
-                onToast={showMusicToast}
-            />
 
         </div>
     );
