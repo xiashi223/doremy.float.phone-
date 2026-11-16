@@ -47,6 +47,8 @@ type TurnFrame = { key: string; html: string; raw: string };
  */
 const MIX_INITIAL_TURNS = 12;
 const MIX_LOAD_MORE_TURNS = 12;
+/** 双端有界窗口上限：任意时刻最多同时挂载这么多条（防止往上翻阅或跳转后几十个沙盒 iframe 全挂在 DOM 上） */
+const MIX_MAX_WINDOW_TURNS = 24;
 /** 回溯把轮次砍短后至少还露着几条（不足就把收起数往回让） */
 const MIX_MIN_VISIBLE_TURNS = 4;
 
@@ -214,6 +216,8 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
      * 用户正停在被回溯的那一轮上，iOS 没有 scroll anchoring，顶上一长就跳走了。
      */
     const [hiddenTurnCount, setHiddenTurnCount] = useState(0);
+    /** 双端有界窗口：往回翻或侧轨跳转到历史区间时，底部收起的较新轮次数 */
+    const [tailHiddenCount, setTailHiddenCount] = useState(0);
     /**
      * 展开更早的轮次后，把原来最上面那条钉在屏幕上原来的位置：新插进来的轮次里
      * 小票/小剧场 iframe 是异步报高的，头一两秒内容会连着长高几次，每次报高都按锚点重落一次，
@@ -519,6 +523,7 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
         loadMoreAnchorRef.current = null;
         const entered = getMixSession(sessionId);
         setHiddenTurnCount(Math.max(0, (entered?.turns.length ?? 0) - MIX_INITIAL_TURNS));
+        setTailHiddenCount(0);
         stickRef.current = (entered?.turns ?? []).some((turn) => turn.role === "user") ? "bottom" : "top";
         applyStick();
         const timer = window.setTimeout(() => {
@@ -568,7 +573,9 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
         return () => window.removeEventListener("message", onFrameResize);
     }, [applyStick, restoreLoadMoreAnchor]);
 
-    /** 展开更早的一批：先记下最上面那条在屏幕上的位置，展开后钉回去；同时撒手，不再跟底 */
+    const turnCount = session?.turns.length ?? 0;
+
+    /** 展开更早的一批：先记下最上面那条在屏幕上的位置，展开后钉回去；超出最大窗口时同步收起尾部 */
     const loadMoreTurns = useCallback(() => {
         const el = scrollRef.current;
         const first = el?.querySelector<HTMLElement>("[data-turn-id]");
@@ -580,21 +587,93 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
             };
         }
         stickRef.current = "free";
-        setHiddenTurnCount((count) => Math.max(0, count - MIX_LOAD_MORE_TURNS));
-    }, []);
+        setHiddenTurnCount((prevHead) => {
+            const nextHead = Math.max(0, prevHead - MIX_LOAD_MORE_TURNS);
+            setTailHiddenCount((prevTail) => {
+                const visible = turnCount - nextHead - prevTail;
+                if (visible > MIX_MAX_WINDOW_TURNS) {
+                    return Math.max(0, turnCount - nextHead - MIX_MAX_WINDOW_TURNS);
+                }
+                return prevTail;
+            });
+            return nextHead;
+        });
+    }, [turnCount]);
+
+    /** 展开更新的一批（处于历史区间时往下翻）：超出最大窗口时同步收起头部 */
+    const loadNewerTurns = useCallback(() => {
+        stickRef.current = "free";
+        setTailHiddenCount((prevTail) => {
+            const nextTail = Math.max(0, prevTail - MIX_LOAD_MORE_TURNS);
+            setHiddenTurnCount((prevHead) => {
+                const visible = turnCount - prevHead - nextTail;
+                if (visible > MIX_MAX_WINDOW_TURNS) {
+                    return Math.max(0, turnCount - nextTail - MIX_MAX_WINDOW_TURNS);
+                }
+                return prevHead;
+            });
+            return nextTail;
+        });
+    }, [turnCount]);
+
+    /** 一键回到最新窗口并贴底 */
+    const jumpToLatestTurns = useCallback(() => {
+        loadMoreAnchorRef.current = null;
+        setTailHiddenCount(0);
+        setHiddenTurnCount(Math.max(0, turnCount - MIX_INITIAL_TURNS));
+        stickRef.current = "bottom";
+        requestAnimationFrame(() => applyStick());
+    }, [turnCount, applyStick]);
+
+    /** 侧轨刻度跳转：以目标轮为中心切出 MIX_INITIAL_TURNS 大小的有界窗口 */
+    const jumpToTurnIndex = useCallback((targetIndex: number) => {
+        if (turnCount <= 0) return;
+        const clamped = Math.max(0, Math.min(turnCount - 1, targetIndex));
+        const half = Math.floor(MIX_INITIAL_TURNS / 2);
+        let start = Math.max(0, clamped - half);
+        let end = Math.min(turnCount, start + MIX_INITIAL_TURNS);
+        if (end - start < MIX_INITIAL_TURNS) {
+            start = Math.max(0, end - MIX_INITIAL_TURNS);
+        }
+        const nextHead = start;
+        const nextTail = Math.max(0, turnCount - end);
+        const targetTurnId = session?.turns[clamped]?.id ?? "";
+        loadMoreAnchorRef.current = null;
+        setHiddenTurnCount(nextHead);
+        setTailHiddenCount(nextTail);
+        stickRef.current = nextTail === 0 && clamped >= turnCount - 2 ? "bottom" : "free";
+        requestAnimationFrame(() => {
+            const el = scrollRef.current;
+            if (!el) return;
+            if (stickRef.current === "bottom") {
+                applyStick();
+                return;
+            }
+            const node = targetTurnId ? el.querySelector<HTMLElement>(`[data-turn-id="${targetTurnId}"]`) : null;
+            if (node) {
+                node.scrollIntoView({ block: "center" });
+                lastTopRef.current = el.scrollTop;
+            }
+        });
+    }, [turnCount, session?.turns, applyStick]);
+
     useLayoutEffect(() => { restoreLoadMoreAnchor(); }, [hiddenTurnCount, restoreLoadMoreAnchor]);
 
     /**
      * 轮数变了跟着修正收起数：
-     * · 变少（回溯/撤回）：只保证还露着几条，不多露——不然顶上冒出旧轮次把画面推下去；
-     * · 变多（新一轮到了）且正贴着底：把顶上多出来的收掉，常驻的 iframe 数量不随长局增长。
+     * · 变少（回溯/撤回）：清掉尾部收起，只保证还露着几条，不多露；
+     * · 变多（新一轮到了）且正贴着底：清掉尾部收起并把顶上多出来的收掉，常驻的 iframe 数量不随长局增长。
      */
-    const turnCount = session?.turns.length ?? 0;
     useLayoutEffect(() => {
+        setTailHiddenCount((tail) => {
+            if (stickRef.current === "bottom") return 0;
+            const maxTail = Math.max(0, turnCount - MIX_MIN_VISIBLE_TURNS);
+            return Math.min(tail, maxTail);
+        });
         setHiddenTurnCount((hidden) => {
             const maxHidden = Math.max(0, turnCount - MIX_MIN_VISIBLE_TURNS);
             if (hidden > maxHidden) return maxHidden;
-            if (stickRef.current === "bottom") return Math.max(hidden, turnCount - MIX_INITIAL_TURNS);
+            if (stickRef.current === "bottom") return Math.max(0, turnCount - MIX_INITIAL_TURNS);
             return hidden;
         });
     }, [turnCount]);
@@ -773,14 +852,18 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
         const text = input.trim();
         if (!text) return;
         setInput("");
-        // 一开口就把落点钉到底：用户那一轮要等落杯前钩子跑完才落库，
+        // 一开口就把落点钉到底并收回尾部折叠：用户那一轮要等落杯前钩子跑完才落库，
         // 这中间界面还是「没人开过口」的样子，不钉住就会被拽回扉页顶上
+        setTailHiddenCount(0);
+        setHiddenTurnCount(Math.max(0, session.turns.length - MIX_INITIAL_TURNS));
         stickRef.current = "bottom";
         void run((signal, commit, onDelta) => generateMixReply(sessionId, text, signal, commit, onDelta));
     };
 
     sayRef.current = (text: string) => {
         if (busyRef.current) return;
+        setTailHiddenCount(0);
+        setHiddenTurnCount(Math.max(0, session.turns.length - MIX_INITIAL_TURNS));
         stickRef.current = "bottom";
         void run((signal, commit, onDelta) => generateMixReply(sessionId, text, signal, commit, onDelta));
     };
@@ -1162,7 +1245,7 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                         查看更早的 {Math.min(MIX_LOAD_MORE_TURNS, hiddenTurnCount)} 条 · 还有 {hiddenTurnCount} 条
                     </button>
                 ) : null}
-                {session.turns.slice(hiddenTurnCount).map((turn, offset) => {
+                {session.turns.slice(hiddenTurnCount, Math.max(hiddenTurnCount, session.turns.length - tailHiddenCount)).map((turn, offset) => {
                     const idx = hiddenTurnCount + offset;
                     const isLast = idx === session.turns.length - 1;
                     const actions = (
@@ -1200,6 +1283,16 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                         </div>
                     );
                 })}
+                {tailHiddenCount > 0 ? (
+                    <div className="mix-tail-window-bar">
+                        <button type="button" className="mix-load-more" onClick={loadNewerTurns}>
+                            查看更新的 {Math.min(MIX_LOAD_MORE_TURNS, tailHiddenCount)} 条 · 还有 {tailHiddenCount} 条
+                        </button>
+                        <button type="button" className="mix-load-more mix-jump-latest" onClick={jumpToLatestTurns}>
+                            回到最新 ⇣
+                        </button>
+                    </div>
+                ) : null}
                 {busy ? (() => {
                     // 流式过程中同样过一遍「仅显示」滤网，写出来的样子和落库后一致
                     const shown = applyMixFilterRules(mixStreamText(live), assets.filterRules, "display");
@@ -1241,6 +1334,30 @@ export function MixologyGame({ sessionId, onBack, onToast }: GameProps) {
                     </div>
                 ))}
             </div>
+            {turnCount > MIX_INITIAL_TURNS ? (() => {
+                const tickCount = Math.min(12, Math.max(4, Math.ceil(turnCount / MIX_INITIAL_TURNS)));
+                const visibleStart = hiddenTurnCount;
+                const visibleEnd = Math.max(visibleStart, turnCount - tailHiddenCount - 1);
+                return (
+                    <div className="mix-turn-rail" aria-label="轮次刻度导航">
+                        {Array.from({ length: tickCount }, (_, i) => {
+                            const targetIdx = tickCount === 1 ? 0 : Math.round((i / (tickCount - 1)) * (turnCount - 1));
+                            const active = targetIdx >= visibleStart && targetIdx <= visibleEnd;
+                            return (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    className="mix-turn-rail-tick"
+                                    data-active={active ? "true" : undefined}
+                                    title={`跳至第 ${targetIdx + 1} / ${turnCount} 条`}
+                                    aria-label={`跳至第 ${targetIdx + 1} 条`}
+                                    onClick={() => jumpToTurnIndex(targetIdx)}
+                                />
+                            );
+                        })}
+                    </div>
+                );
+            })() : null}
             {/* 无界面的机括：沙盒照常挂着、照常收对白事件，只是什么都不画 */}
             {slotGroups.hidden.length ? (
                 <div hidden aria-hidden="true">

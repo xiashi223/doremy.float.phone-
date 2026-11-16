@@ -1324,6 +1324,63 @@
     color: var(--mix-violet);
 }
 
+.mix-tail-window-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px auto 14px;
+}
+
+.mix-tail-window-bar .mix-load-more {
+    margin: 0;
+}
+
+.mix-jump-latest {
+    background: rgba(141, 123, 245, 0.2);
+    color: var(--mix-text);
+    border: 1px solid rgba(141, 123, 245, 0.35);
+}
+
+/* 侧轨轮次刻度：长局快速跳转，不破坏双端有界窗口 */
+.mix-turn-rail {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 3px;
+    border-radius: 999px;
+    background: rgba(11, 11, 16, 0.42);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.mix-turn-rail-tick {
+    width: 6px;
+    height: 6px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: rgba(242, 240, 247, 0.28);
+    cursor: pointer;
+    transition: transform 0.16s, background 0.16s, height 0.16s;
+}
+
+.mix-turn-rail-tick[data-active="true"] {
+    height: 12px;
+    background: var(--mix-gold);
+}
+
+.mix-turn-rail-tick:active {
+    transform: scale(1.25);
+}
+
 /* AI 正文：无气泡全宽，左右对称 */
 .mix-prose {
     margin: 14px 0;
