@@ -249,7 +249,7 @@
   --phone-case-radius: 0px;
   --phone-screen-radius: 0px;
   width: 100vw;
-  height: 100lvh;
+  height: 100dvh;
   margin-inline: 0;
   margin-top: 0;
 }
@@ -1150,7 +1150,7 @@
 
   .app-root {
     width: 100vw;
-    height: 100lvh;
+    height: 100dvh;
     padding: 0;
     display: flex;
     justify-content: flex-start;
@@ -1210,7 +1210,7 @@
 
   .app-root.splash-root {
     width: 100vw;
-    height: 100lvh;
+    height: 100dvh;
     margin: 0;
     padding: 0;
     display: flex;
