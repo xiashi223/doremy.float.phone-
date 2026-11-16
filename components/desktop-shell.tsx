@@ -4929,8 +4929,12 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                 )}
 
 
-                {!activeApp ? (
-                  <>
+                <div
+                  className="phone-desktop-layer"
+                  data-hidden={activeApp ? "true" : undefined}
+                  aria-hidden={Boolean(activeApp)}
+                  inert={Boolean(activeApp) || undefined}
+                >
                     <div
                       ref={swipeLayerRef}
                       className="phone-swipe-layer"
@@ -5144,8 +5148,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                         />
                       ))}
                     </div>
-                  </>
-                ) : (
+                </div>
+                {activeApp ? (
                   <>
                     <section className="phone-app-pane" style={activeApp === "dwelling" || activeApp === "xiaohongshu" || activeApp === "shopping" ? { display: "none" } : undefined}>
                       {renderAppBody()}
@@ -5161,7 +5165,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                       </section>
                     )}
                   </>
-                )}
+                ) : null}
                 {xiaohongshuMounted && (
                   <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
                     <XiaohongshuApp
@@ -5195,10 +5199,12 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                 )}
               </div>
 
-              {!activeApp ? (
                 <footer
                   ref={dockElRef}
                   className={editMode ? "dock edit-mode" : "dock"}
+                  data-hidden={activeApp ? "true" : undefined}
+                  aria-hidden={Boolean(activeApp)}
+                  inert={Boolean(activeApp) || undefined}
                   {...(dockSkinUrl ? { "data-skinned": "" } : {})}
                   style={{ "--dock-count": Math.max(1, dock.length) } as CSSProperties}
                   onPointerMove={handleSwipeMove}
@@ -5264,7 +5270,6 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                     );
                   })}
                 </footer>
-              ) : null}
               <DebugPromptPanel />
               <QuickActionFloat />
               <MascotFloat />

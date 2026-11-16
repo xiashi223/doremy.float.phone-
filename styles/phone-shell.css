@@ -150,7 +150,6 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;
-  transition: opacity 220ms ease;
 }
 
 /* ── Status bar ── */
@@ -303,6 +302,19 @@
   -webkit-user-drag: none;
   user-drag: none;
   pointer-events: none;
+}
+
+.phone-desktop-layer {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.phone-desktop-layer[data-hidden="true"],
+.dock[data-hidden="true"] {
+  display: none !important;
 }
 
 /* Swipe layer wraps the icon grid to allow drag-to-switch pages */
