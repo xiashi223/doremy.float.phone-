@@ -150,7 +150,6 @@
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;
-  transition: opacity 220ms ease;
 }
 
 /* ── Status bar ── */
@@ -246,8 +245,13 @@
   --phone-case-padding: 0px;
   --phone-case-border-size: 0px;
   --phone-frame-size: 0px;
-  --phone-frame-radius: var(--phone-screen-radius);
-  --phone-case-radius: var(--phone-screen-radius);
+  --phone-frame-radius: 0px;
+  --phone-case-radius: 0px;
+  --phone-screen-radius: 0px;
+  width: 100vw;
+  height: 100dvh;
+  margin-inline: 0;
+  margin-top: 0;
 }
 
 .phone-shell-wrap[data-hide-case="1"] .phone-case {
@@ -298,6 +302,55 @@
   -webkit-user-drag: none;
   user-drag: none;
   pointer-events: none;
+}
+
+.phone-desktop-layer {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.phone-desktop-layer[data-hidden="true"],
+.dock[data-hidden="true"] {
+  display: none !important;
+}
+
+@keyframes phone-returning-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.phone-returning-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  will-change: opacity;
+  animation: phone-returning-fade-in 120ms ease 220ms forwards;
+  pointer-events: auto;
+}
+
+.phone-returning-pill {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: calc(13px * var(--app-text-scale, 1));
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
 }
 
 /* Swipe layer wraps the icon grid to allow drag-to-switch pages */
@@ -1060,7 +1113,7 @@
 
 /* ── Mobile responsive ── */
 
-@media (hover: none) {
+@media (max-width: 9999px) {
 
   /* 用户在设置里显式开启「显示系统状态栏」且运行时不在全屏时，控制器才会挂
      data-pwa-display-mode 标记（见 pwa-manifest-injector）：此时所有 App 共用系统
@@ -1102,7 +1155,7 @@
 
   .app-root {
     width: 100vw;
-    height: 100lvh;
+    height: 100dvh;
     padding: 0;
     display: flex;
     justify-content: flex-start;
@@ -1119,6 +1172,7 @@
     --phone-frame-radius: 0px;
     --phone-case-radius: 0px;
     width: var(--phone-screen-width);
+    height: var(--phone-screen-height);
     margin-inline: 0;
     gap: 0;
     transform-origin: top left;
@@ -1161,7 +1215,7 @@
 
   .app-root.splash-root {
     width: 100vw;
-    height: 100lvh;
+    height: 100dvh;
     margin: 0;
     padding: 0;
     display: flex;

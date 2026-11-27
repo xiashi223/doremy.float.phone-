@@ -107,7 +107,7 @@ export function applyDeviceCompatibilitySettings(
     // reference screen into the actual display. This keeps the shell within bounds at 75–125%.
     const layoutWidth = referenceWidth / userScale;
     const layoutHeight = referenceHeight / userScale;
-    const fitScale = Math.min(screenWidth / layoutWidth, screenHeight / layoutHeight);
+    const fitScale = Math.min(viewportWidth / layoutWidth, viewportHeight / layoutHeight);
     const scale = clamp(fitScale, 0.5, 1.25);
     root.style.setProperty("--phone-screen-width", Math.round(layoutWidth) + "px");
     root.style.setProperty("--phone-screen-height", Math.round(layoutHeight) + "px");

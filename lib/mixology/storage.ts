@@ -70,19 +70,48 @@ export function getMixBuiltin(id: string): MixMaterial | null {
     return listMixBuiltins().find((m) => m.id === id) ?? null;
 }
 
+/**
+ * 按 kv 原始字符串引用做解析备忘：
+ * kvGet 从内存 Map 直读，未写入时每次返回同一个 string 引用（=== 为 O(1)）。
+ * 命中时跳过整包 JSON.parse（酒柜/对局可达数 MB 至十余 MB），
+ * 仅做顶层数组/对象浅拷贝，防止调用方 push/原地改下标污染缓存。
+ */
+const jsonMemo = new Map<string, { raw: string; value: unknown }>();
+
+function cloneTopLevel<T>(val: T): T {
+    if (Array.isArray(val)) return val.slice() as unknown as T;
+    if (val && typeof val === "object") return { ...(val as Record<string, unknown>) } as T;
+    return val;
+}
+
 function readJson<T>(key: string, fallback: T): T {
     const raw = kvGet(key);
-    if (!raw) return fallback;
+    if (!raw) {
+        jsonMemo.delete(key);
+        return fallback;
+    }
+    const cached = jsonMemo.get(key);
+    if (cached && cached.raw === raw) {
+        return cloneTopLevel(cached.value as T);
+    }
     try {
         const parsed = JSON.parse(raw);
-        return (parsed ?? fallback) as T;
+        if (parsed === null || parsed === undefined) return fallback;
+        jsonMemo.set(key, { raw, value: parsed });
+        return cloneTopLevel(parsed as T);
     } catch {
         return fallback;
     }
 }
 
 function writeJson(key: string, value: unknown): void {
-    kvSet(key, JSON.stringify(value));
+    const raw = JSON.stringify(value);
+    kvSet(key, raw);
+    if (value !== null && value !== undefined) {
+        jsonMemo.set(key, { raw, value: cloneTopLevel(value) });
+    } else {
+        jsonMemo.delete(key);
+    }
 }
 
 // ---------- 创作者资料 ----------

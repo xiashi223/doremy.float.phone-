@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight } from "lucide-react";
 
@@ -155,11 +155,12 @@ async function warmBuiltinFonts(shouldStop: () => boolean): Promise<void> {
   await Promise.all(BUILTIN_FONT_LOAD_SPECS.map((spec) => document.fonts.load(spec).catch(() => [])));
 }
 
-function SplashScreen({ ready = false, onEnter }: { ready?: boolean; onEnter?: () => void }) {
+function SplashScreen({ ready = false, statusBarDropPx = 0, onEnter }: { ready?: boolean; statusBarDropPx?: number; onEnter?: () => void }) {
   return (
     <main className="app-root splash-root" onClick={ready ? onEnter : undefined}>
       <section
         className="phone-shell-wrap splash-shell-wrap"
+        style={{ "--status-bar-drop": `${statusBarDropPx}px` } as CSSProperties}
         aria-label={TEXT.loading}
       >
         <div className="phone-case">
@@ -282,8 +283,28 @@ export function MainApp() {
       setKvHydrateFailed(false);
 
       let nextPreparedTheme: PreparedDesktopTheme | null = null;
+      let timedOut = false;
       try {
-        nextPreparedTheme = await prepareDesktopThemeForFirstPaint();
+        const preloadPromise = prepareDesktopThemeForFirstPaint();
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const timeoutPromise = new Promise<null>((resolve) => {
+          timeoutId = setTimeout(() => {
+            timedOut = true;
+            resolve(null);
+          }, 1500);
+        });
+        nextPreparedTheme = await Promise.race([preloadPromise, timeoutPromise]);
+        if (timeoutId) clearTimeout(timeoutId);
+        if (timedOut) {
+          console.warn("[MainApp] desktop theme preload timed out after 1500ms; entering desktop immediately");
+          void preloadPromise
+            .then((lateTheme) => {
+              if (!cancelled) setPreparedDesktopTheme(lateTheme);
+            })
+            .catch((error) => {
+              console.warn("[MainApp] late desktop theme preload failed:", error);
+            });
+        }
       } catch (error) {
         console.warn("[MainApp] desktop theme preload failed:", error);
       }
@@ -352,7 +373,7 @@ export function MainApp() {
   return (
     <AccountGate>
       {!splashDismissed ? (
-        <SplashScreen ready={hydrated} onEnter={() => setSplashDismissed(true)} />
+        <SplashScreen ready={hydrated} statusBarDropPx={preparedDesktopTheme?.profile.statusBarDropPx ?? 0} onEnter={() => setSplashDismissed(true)} />
       ) : (
         <main className="app-root">
           <MusicProvider>

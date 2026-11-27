@@ -1118,7 +1118,7 @@ function useAndroidCaretKeyboardLift() {
       return;
     }
 
-    const mobileMq = window.matchMedia("(max-width: 500px) and (hover: none) and (pointer: coarse)");
+    const mobileMq = window.matchMedia("(max-width: 768px) and (hover: none) and (pointer: coarse)");
     const viewport = window.visualViewport;
     let focusedElement: HTMLElement | null = null;
     let raf = 0;
@@ -1230,7 +1230,7 @@ function useAndroidNativeKeyboardViewport() {
     if (!/Android/i.test(navigator.userAgent)) {
       return;
     }
-    const mobileMq = window.matchMedia("(max-width: 500px) and (hover: none) and (pointer: coarse)");
+    const mobileMq = window.matchMedia("(max-width: 768px) and (hover: none) and (pointer: coarse)");
     if (!mobileMq.matches) {
       return;
     }
@@ -1345,6 +1345,8 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
   const [glassPaintPass, setGlassPaintPass] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeApp, setActiveApp] = useState<DesktopIconId | null>(null);
+  const [returningToDesktop, setReturningToDesktop] = useState(false);
+  const returningRafRef = useRef<number>(0);
   /** 内置「角色陪伴专注」的完整定义（HTML 挂载后异步载入，见 loadFocusCompanionEntryHtml）。 */
   const [focusCompanionApp, setFocusCompanionApp] = useState<InstalledCustomApp | null>(null);
   /** 后台工具/聊天事件的同步路径拿不到 state，走 ref。 */
@@ -4403,27 +4405,55 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     };
   }, [setSwipeDrag]);
 
+  const returnToDesktop = useCallback((afterClose?: () => void) => {
+    if (returningRafRef.current) {
+      window.cancelAnimationFrame(returningRafRef.current);
+      returningRafRef.current = 0;
+    }
+    setReturningToDesktop(true);
+    returningRafRef.current = window.requestAnimationFrame(() => {
+      returningRafRef.current = 0;
+      setActiveApp(null);
+      afterClose?.();
+      returningRafRef.current = window.requestAnimationFrame(() => {
+        returningRafRef.current = 0;
+        setReturningToDesktop(false);
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (returningRafRef.current) {
+        window.cancelAnimationFrame(returningRafRef.current);
+        returningRafRef.current = 0;
+      }
+    };
+  }, []);
+
   const handleCloseXiaohongshu = useCallback((isBusy?: boolean) => {
     const shouldKeepMounted = isBusy ?? xiaohongshuBusy;
-    setActiveApp(null);
-    if (shouldKeepMounted) {
-      setNotice("小红书正在后台生成，完成后会自动更新。");
-      return;
-    }
-    setXiaohongshuBusy(false);
-    setXiaohongshuMounted(false);
-  }, [xiaohongshuBusy]);
+    returnToDesktop(() => {
+      if (shouldKeepMounted) {
+        setNotice("小红书正在后台生成，完成后会自动更新。");
+        return;
+      }
+      setXiaohongshuBusy(false);
+      setXiaohongshuMounted(false);
+    });
+  }, [xiaohongshuBusy, returnToDesktop]);
 
   const handleCloseShopping = useCallback((isBusy?: boolean) => {
     const shouldKeepMounted = isBusy ?? shoppingBusy;
-    setActiveApp(null);
-    if (shouldKeepMounted) {
-      setNotice("购物正在后台生成，完成后会自动更新。");
-      return;
-    }
-    setShoppingBusy(false);
-    setShoppingMounted(false);
-  }, [shoppingBusy]);
+    returnToDesktop(() => {
+      if (shouldKeepMounted) {
+        setNotice("购物正在后台生成，完成后会自动更新。");
+        return;
+      }
+      setShoppingBusy(false);
+      setShoppingMounted(false);
+    });
+  }, [shoppingBusy, returnToDesktop]);
 
   /** 内置「通话统计」：1:1 复用 call.stats 2.1.0 的 HTML，由 CustomAppRunner 挂载。 */
   const CALL_STATS_BUILTIN_APP: InstalledCustomApp = {
@@ -4465,7 +4495,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
       }
       return;
     }
-    setActiveApp(null);
+    returnToDesktop();
   }
 
   // Android-style system back gesture for every foreground app. Nested pages can
@@ -4534,10 +4564,13 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
         return;
       }
       if (currentApp === "chat") {
-        setActiveChatSession(null);
-        setChatInitSessionId(null);
+        returnToDesktop(() => {
+          setActiveChatSession(null);
+          setChatInitSessionId(null);
+        });
+        return;
       }
-      setActiveApp(null);
+      returnToDesktop();
     };
     const onPointerCancel = (event: PointerEvent) => {
       if (swipeBackGestureRef.current?.pointerId === event.pointerId) cancelGesture();
@@ -4555,7 +4588,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
       window.removeEventListener("blur", cancelGesture);
       cancelGesture();
     };
-  }, [getCustomAppForIcon, customAppLaunchContext]);
+  }, [getCustomAppForIcon, customAppLaunchContext, returnToDesktop]);
 
   function dismissPendingCustomAppUpdate(): void {
     if (customAppUpdateBusy || !customAppUpdatePrompt) return;
@@ -4635,20 +4668,21 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "wallet") {
-      return <WalletApp onClose={() => setActiveApp(null)} />;
+      return <WalletApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "anonymous_qa") {
-      return <AnonymousQaApp onClose={() => setActiveApp(null)} />;
+      return <AnonymousQaApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "chat") {
       return (
         <PhoneChatApp
           onClose={() => {
-            setActiveApp(null);
-            setActiveChatSession(null);
-            setChatInitSessionId(null);
+            returnToDesktop(() => {
+              setActiveChatSession(null);
+              setChatInitSessionId(null);
+            });
           }}
           initialSessionId={chatInitSessionId}
           onSessionChange={setActiveChatSession}
@@ -4662,7 +4696,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
           draft={draftTheme}
           onDraftChange={setDraftTheme}
           onApply={applyTheme}
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
           onNotice={setNotice}
           widgets={widgets}
           onWidgetsChange={handleWidgetsChange}
@@ -4677,7 +4711,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     if (activeApp === "characters") {
       return (
         <PhoneCharacterApp
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
           onNotice={setNotice}
         />
       );
@@ -4686,7 +4720,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     if (activeApp === "settings") {
       return (
         <PhoneSettingsApp
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
           onNotice={setNotice}
         />
       );
@@ -4695,7 +4729,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     if (activeApp === "resources") {
       return (
         <PhoneResourcesApp
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
           onNotice={setNotice}
           initialPage={resourcesInitialPage}
         />
@@ -4703,16 +4737,16 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "music") {
-      return <MusicApp onClose={() => setActiveApp(null)} />;
+      return <MusicApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "calendar") {
-      return <PhoneCalendarApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <PhoneCalendarApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
     if (activeApp === "realitybridge") {
       return (
         <RealityBridgeApp
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
           onNotice={setNotice}
           onOpenSettings={(page) => {
             // 跳到设置里的某个子页。这里必须**两条腿一起跑**，只靠一条会漏：
@@ -4739,17 +4773,17 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
     if (activeApp === "qa") {
       return (
-        <ChatPluginPageBoundary page="工坊" onClose={() => setActiveApp(null)}>
-          <PhoneQaApp onClose={() => setActiveApp(null)} onNotice={setNotice} />
+        <ChatPluginPageBoundary page="工坊" onClose={() => returnToDesktop()}>
+          <PhoneQaApp onClose={() => returnToDesktop()} onNotice={setNotice} />
         </ChatPluginPageBoundary>
       );
     }
     if (activeApp === "resource_hub") {
-      return <ResourceHubApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <ResourceHubApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     if (activeApp === "diary") {
-      return <DiaryApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <DiaryApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     if (activeApp === "xiaohongshu") {
@@ -4757,27 +4791,27 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "story") {
-      return <StoryApp onClose={() => setActiveApp(null)} />;
+      return <StoryApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "life") {
-      return <LifeEngineApp onClose={() => setActiveApp(null)} initialCharacterId={lifeFocusCharacterId ?? undefined} />;
+      return <LifeEngineApp onClose={() => returnToDesktop()} initialCharacterId={lifeFocusCharacterId ?? undefined} />;
     }
 
     if (activeApp === "archive") {
-      return <ArchiveRoomApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <ArchiveRoomApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     if (activeApp === "memo") {
-      return <MemoArchiveApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <MemoArchiveApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     if (activeApp === "photowall") {
-      return <PhotoWallApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <PhotoWallApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     if (activeApp === "watchtogether") {
-      return <WatchTogetherApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <WatchTogetherApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     if (activeApp === "callstats") {
@@ -4788,11 +4822,11 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
           appId={CALL_STATS_BUILTIN_APP.id}
           appVersion={CALL_STATS_BUILTIN_APP.version}
           manifestId={CALL_STATS_BUILTIN_APP.manifest?.id}
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
         >
           <CustomAppRunner
             app={CALL_STATS_BUILTIN_APP}
-            onClose={() => setActiveApp(null)}
+            onClose={() => returnToDesktop()}
             onNotice={setNotice}
           />
         </CustomAppForegroundBoundary>
@@ -4807,7 +4841,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
           appId={HEARTCRAFT_BUILTIN_APP.id}
           appVersion={HEARTCRAFT_BUILTIN_APP.version}
           manifestId={HEARTCRAFT_BUILTIN_APP.manifest?.id}
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
         >
           <CustomAppRunner
             app={HEARTCRAFT_BUILTIN_APP}
@@ -4834,7 +4868,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
           appId={focusCompanionApp.id}
           appVersion={focusCompanionApp.version}
           manifestId={focusCompanionApp.manifest?.id}
-          onClose={() => setActiveApp(null)}
+          onClose={() => returnToDesktop()}
         >
           <CustomAppRunner
             app={focusCompanionApp}
@@ -4847,15 +4881,15 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "vnmode") {
-      return <VnApp onClose={() => setActiveApp(null)} />;
+      return <VnApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "reading") {
-      return <ReadingApp onClose={() => setActiveApp(null)} />;
+      return <ReadingApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "mapmode") {
-      return <MapApp onClose={() => setActiveApp(null)} />;
+      return <MapApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "dwelling") {
@@ -4864,7 +4898,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "checkphone") {
-      return <CheckPhoneApp onClose={() => setActiveApp(null)} />;
+      return <CheckPhoneApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "shopping") {
@@ -4872,19 +4906,20 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "game") {
-      return <GameHubApp onClose={() => setActiveApp(null)} />;
+      return <GameHubApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "mixology") {
-      return <MixologyApp onClose={() => setActiveApp(null)} />;
+      return <MixologyApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "appmarket") {
       return (
         <AppMarketApp
           onClose={() => {
-            setAppMarketLaunchContext(null);
-            setActiveApp(null);
+            returnToDesktop(() => {
+              setAppMarketLaunchContext(null);
+            });
           }}
           onOpenCustomApp={(appId) => {
             setAppMarketLaunchContext(null);
@@ -4898,15 +4933,15 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
     }
 
     if (activeApp === "interview_magazine") {
-      return <InterviewMagazineApp onClose={() => setActiveApp(null)} />;
+      return <InterviewMagazineApp onClose={() => returnToDesktop()} />;
     }
 
     if (activeApp === "cocreate") {
-      return <CoCreateApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+      return <CoCreateApp onClose={() => returnToDesktop()} onNotice={setNotice} />;
     }
 
     return activeApp in ICONS
-      ? <PhonePlaceholderApp icon={ICONS[activeApp as IconId]} onClose={() => setActiveApp(null)} />
+      ? <PhonePlaceholderApp icon={ICONS[activeApp as IconId]} onClose={() => returnToDesktop()} />
       : null;
   }
 
@@ -5270,8 +5305,12 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                 )}
 
 
-                {!activeApp ? (
-                  <>
+                <div
+                  className="phone-desktop-layer"
+                  data-hidden={activeApp ? "true" : undefined}
+                  aria-hidden={Boolean(activeApp)}
+                  inert={Boolean(activeApp) || undefined}
+                >
                     <div
                       ref={swipeLayerRef}
                       className="phone-swipe-layer"
@@ -5485,8 +5524,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                         />
                       ))}
                     </div>
-                  </>
-                ) : (
+                </div>
+                {activeApp ? (
                   <>
                     <section className="phone-app-pane" style={activeApp === "dwelling" || activeApp === "xiaohongshu" || activeApp === "shopping" ? { display: "none" } : undefined}>
                       {renderAppBody()}
@@ -5495,14 +5534,14 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                     {dwellingMounted && (
                       <section className="phone-app-pane" style={activeApp !== "dwelling" ? { display: "none" } : undefined}>
                         <DwellingApp
-                          onClose={() => setActiveApp(null)}
+                          onClose={() => returnToDesktop()}
                           visible={activeApp === "dwelling"}
                           onIdle={() => { if (activeApp !== "dwelling") setDwellingMounted(false); }}
                         />
                       </section>
                     )}
                   </>
-                )}
+                ) : null}
                 {xiaohongshuMounted && (
                   <section className="phone-app-pane" style={activeApp !== "xiaohongshu" ? { display: "none" } : undefined}>
                     <XiaohongshuApp
@@ -5554,11 +5593,13 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                 ))}
               </div>
 
-              {!activeApp ? (
-                <footer
-                  ref={dockElRef}
-                  className={editMode ? "dock edit-mode" : "dock"}
-                  {...(dockSkinUrl ? { "data-skinned": "" } : {})}
+              <footer
+                ref={dockElRef}
+                className={editMode ? "dock edit-mode" : "dock"}
+                data-hidden={activeApp ? "true" : undefined}
+                aria-hidden={Boolean(activeApp)}
+                inert={Boolean(activeApp) || undefined}
+                {...(dockSkinUrl ? { "data-skinned": "" } : {})}
                   style={{ "--dock-count": Math.max(1, dock.length) } as CSSProperties}
                   onPointerMove={handleSwipeMove}
                   onPointerUp={handleSwipeEnd}
@@ -5622,8 +5663,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                       </button>
                     );
                   })}
-                </footer>
-              ) : null}
+              </footer>
               <DebugPromptPanel />
               <QuickActionFloat />
               <MascotFloat />
@@ -5841,6 +5881,12 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
                   </div>
                 );
               })()}
+
+              {returningToDesktop ? (
+                <div className="phone-returning-mask" role="status" aria-live="polite">
+                  <span className="phone-returning-pill">正在返回桌面…</span>
+                </div>
+              ) : null}
 
               {/* Drag ghost — absolutely positioned INSIDE .phone-shell so the
                   clone keeps theme variables + glass effect selectors

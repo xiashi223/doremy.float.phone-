@@ -15,8 +15,6 @@ export const runtime = "nodejs";
 // An explicit cookie can override the install mode. With no cookie, keep the
 // upstream behavior so existing installs and users are not silently changed.
 export function GET(request: NextRequest) {
-  const ua = request.headers.get("user-agent") || "";
-  const isEdge = /Edg/i.test(ua);
   const preference = readPwaDisplayPreference(request.headers.get("cookie") || "");
 
   const manifest = preference === "fullscreen"
@@ -28,18 +26,10 @@ export function GET(request: NextRequest) {
     : preference === "standalone"
       ? {
           ...baseManifest,
-          display: isEdge ? "minimal-ui" : "standalone",
-          display_override: isEdge ? ["minimal-ui", "standalone"] : ["standalone", "minimal-ui"],
-          ...(isEdge ? { theme_color: "#f8f7f2" } : {}),
+          display: "standalone",
+          display_override: ["standalone", "minimal-ui"],
         }
-      : isEdge
-        ? {
-            ...baseManifest,
-            display: "minimal-ui",
-            display_override: ["minimal-ui", "standalone"],
-            theme_color: "#f8f7f2",
-          }
-        : baseManifest;
+      : baseManifest;
 
   return new NextResponse(JSON.stringify(manifest), {
     headers: {
