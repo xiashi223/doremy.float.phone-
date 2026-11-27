@@ -1324,6 +1324,74 @@
     color: var(--mix-violet);
 }
 
+.mix-tail-window-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 10px auto 14px;
+}
+
+.mix-tail-window-bar .mix-load-more {
+    margin: 0;
+}
+
+.mix-jump-latest {
+    background: rgba(141, 123, 245, 0.2);
+    color: var(--mix-text);
+    border: 1px solid rgba(141, 123, 245, 0.35);
+}
+
+/* 侧轨轮次刻度：长局快速跳转，不破坏双端有界窗口 */
+.mix-turn-rail {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 12;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 3px;
+    border-radius: 999px;
+    background: rgba(11, 11, 16, 0.34);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.mix-turn-rail-tick {
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.mix-turn-rail-tick::after {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.32);
+    transition: transform 0.16s, background 0.16s;
+}
+
+.mix-turn-rail-tick[data-active="true"]::after {
+    background: var(--mix-violet);
+    transform: scale(1.45);
+}
+
+.mix-turn-rail-tick:active::after {
+    transform: scale(1.7);
+}
+
 /* AI 正文：无气泡全宽，左右对称 */
 .mix-prose {
     margin: 14px 0;
